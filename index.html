@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<script src="https://bossanova.uk/jexcel/v4/jexcel.js"></script>
+	<link rel="stylesheet" href="https://bossanova.uk/jexcel/v4/jexcel.css" type="text/css" />
+
+	<script src="https://bossanova.uk/jsuites/v2/jsuites.js"></script>
+	<link rel="stylesheet" href="https://bossanova.uk/jsuites/v2/jsuites.css" type="text/css" />
+
+	<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js"></script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.2.0/papaparse.js"></script>
+
+	<style type="text/css">
+		body {
+			font-family: Calibri;
+		}
+	</style>
+
+	<title>Conversion CSV</title>
+</head>
+<body>
+
+	<input type="file" id="files" accept=".csv, application/vnd.ms-excel" multiple>
+	<button id="submit" type="button">Go</button>
+	<div id='my-spreadsheet'></div>
+
+<script type="text/javascript">
+	var start, end;
+	var stepped = 0, rowCount = 0, errorCount = 0, firstError, fileNumber = 0;
+	var table = [];
+	var headers = [];
+
+	var config = {
+		delimiter: ";",	// auto-detect
+		newline: "\n",	// auto-detect
+		encoding: "l3",
+		complete: completeFn,
+	}
+
+
+	$('#submit').click(function () {
+		var files = $('#files')[0].files;
+		if (!files.length) {
+			alert("Elija al menos un archivo");
+			return enableButton();
+		}
+		Array.from(files).forEach(file => { 
+			if (!file.name.toLowerCase().endsWith('.csv')) {
+				alert('Solo ingresar archivos .CSV')
+				return enableButton();
+			}
+		});
+		
+		$('#files').parse({
+			config: config,
+			before: function(file, inputElem)
+			{
+				start = now();
+				fileNumber++;
+				console.log("Parsing file...", file);
+			},
+			error: function(err, file)
+			{
+				console.log("ERROR:", err, file);
+				firstError = firstError || err;
+				errorCount++;
+			},
+			complete: function()
+			{
+				end = now();
+				printStats("Done with all files");
+
+				if (checkEqualHeaders()) {
+					showTable();
+				}
+
+				fileNumber = 0;
+				table = [];
+				headers = [];
+			}
+		});
+	});
+
+	function showTable() {
+		let spreadsheet = document.getElementById('my-spreadsheet');
+		let myColumns = headers[0].map(function (element) {
+			return {
+				'title' : element,
+				'type': 'text'
+			};
+		})
+		spreadsheet.innerHTML = "";
+		jexcel(spreadsheet, {
+		    data: table,
+		    columns: myColumns
+		});
+	}
+
+			
+	function printStats(msg) {
+		if (msg)
+			console.log(msg);
+		console.log("       Time:", (end-start || "(Unknown; your browser does not support the Performance API)"), "ms");
+		console.log("  Row count:", rowCount);
+		if (stepped)
+			console.log("    Stepped:", stepped);
+		console.log("     Errors:", errorCount);
+		if (errorCount)
+			console.log("First error:", firstError);
+	}
+
+	function completeFn(results) {
+		end = now();
+
+		if (results && results.errors)
+		{
+			if (results.errors)
+			{
+				errorCount = results.errors.length;
+				firstError = results.errors[0];
+			}
+			if (results.data && results.data.length > 0)
+				rowCount = results.data.length;
+		}
+
+		printStats("Parse complete");
+		console.log("    Results:", results);
+
+		results.data.forEach(function (fila, i) {
+			console.log({fila: fila, i: i});
+			if (i != 0) {
+				table.push(fila);
+			} else {
+				headers.push(fila);
+			}
+		});
+
+		// icky hack
+		setTimeout(enableButton, 100);
+	}
+
+	function now() {
+		return typeof window.performance !== 'undefined'
+				? window.performance.now()
+				: 0;
+	}
+
+	function enableButton() {
+		$('#submit').prop('disabled', false);
+	}
+
+	function checkEqualHeaders() {
+		return headers.every( (val, i, arr) => val.join('') == arr[0].join(''));
+	}
+
+</script>
+</body>
+</html>
